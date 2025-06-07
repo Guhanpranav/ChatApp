@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <title>Chat Room</title>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f7f9;
+      margin: 0;
+      padding: 0;
+    }
+
+    h2 {
+      text-align: center;
+      background-color: #007bff;
+      color: white;
+      padding: 1rem;
+    }
+
+    #chatMessages {
+      height: 400px;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background-color: #ffffff;
+      border-top: 1px solid #ccc;
+      border-bottom: 1px solid #ccc;
+    }
+
+    .message {
+      max-width: 70%;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      word-wrap: break-word;
+    }
+
+    .my-message {
+      align-self: flex-end;
+      background-color: #dcf8c6;
+    }
+
+    .other-message {
+      align-self: flex-start;
+      background-color: #f1f0f0;
+    }
+
+    .italic {
+      font-style: italic;
+      text-align: center;
+      color: #555;
+      font-size: 0.85rem;
+    }
+
+    form {
+      display: flex;
+      padding: 10px;
+      background-color: #f4f7f9;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 10px;
+      border-radius: 20px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+
+    button {
+      margin-left: 10px;
+      padding: 10px 20px;
+      border-radius: 20px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Welcome to the Chat Room</h2>
+
+<!-- Display username from session -->
+<p style="text-align:center;" th:text="'User: ' + ${session.username}"></p>
+
+<!-- Join message (optional)
+<p id="joinMessage" class="italic" th:text="${session.username} + ' joined the chat.'"></p> -->
+
+<div id="chatMessages">
+  <!-- Chat messages will appear here -->
+</div>
+
+<form id="messageForm" onsubmit="sendMessage(event)">
+  <input type="text" id="messageInput" placeholder="Enter message" autocomplete="off" />
+  <button type="submit">Send</button>
+</form>
+
+<script th:inline="javascript">
+  let username = /*[[${session.username}]]*/ 'Anonymous';
+
+  let socket = new SockJS('/chat');
+  let stompClient = Stomp.over(socket);
+
+  stompClient.connect({}, function (frame) {
+    console.log('Connected: ' + frame);
+
+    stompClient.send("/api/addUser", {}, JSON.stringify({ 'sender': username }));
+
+    stompClient.subscribe('/topic/public', function (message) {
+      let msg = JSON.parse(message.body);
+      let chatMessages = document.getElementById('chatMessages');
+      let messageElement = document.createElement('div');
+
+      if (msg.type === 'JOIN') {
+        messageElement.textContent = msg.sender + ' joined the chat.';
+        messageElement.classList.add('italic');
+      } else if (msg.type === 'CHAT') {
+        messageElement.textContent = msg.sender + ": " + msg.content;
+        messageElement.classList.add('message');
+
+        if (msg.sender === username) {
+          messageElement.classList.add('my-message');
+        } else {
+          messageElement.classList.add('other-message');
+        }
+      } else {
+        messageElement.textContent = msg.content;
+        messageElement.classList.add('italic');
+      }
+
+      chatMessages.appendChild(messageElement);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+  });
+
+  function sendMessage(event) {
+    event.preventDefault();
+
+    let input = document.getElementById('messageInput');
+    let messageContent = input.value.trim();
+
+    if (messageContent && stompClient) {
+      let chatMessage = {
+        sender: username,
+        content: messageContent,
+        type: 'CHAT'
+      };
+      stompClient.send("/api/sendMessage", {}, JSON.stringify(chatMessage));
+      input.value = '';
+    }
+  }
+</script>
+
+</body>
+</html>

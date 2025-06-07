@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Room</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</head>
+<body>
+<h2>Chat Room</h2>
+<input type="text" id="username" placeholder="Enter your name" />
+<button onclick="connect()">Join</button>
+<br/><br/>
+<div id="chat"></div>
+<input type="text" id="message" placeholder="Type a message..." />
+<button onclick="sendMessage()">Send</button>
+
+<script>
+    let stompClient = null;
+
+    function connect() {
+        let socket = new SockJS('/chat');
+        stompClient = Stomp.over(socket);
+        let username = document.getElementById('username').value;
+
+        stompClient.connect({}, function () {
+            stompClient.subscribe('/topic/public', function (message) {
+                let msg = JSON.parse(message.body);
+                document.getElementById('chat').innerHTML += `<p><strong>${msg.sender}:</strong> ${msg.content}</p>`;
+            });
+
+            stompClient.send("/api/addUser", {}, JSON.stringify({ sender: username }));
+        });
+    }
+
+    function sendMessage() {
+        let content = document.getElementById('message').value;
+        let username = document.getElementById('username').value;
+        stompClient.send("/api/sendMessage", {}, JSON.stringify({ sender: username, content: content, type: 'CHAT' }));
+    }
+</script>
+</body>
+</html>
